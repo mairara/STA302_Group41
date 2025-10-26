@@ -142,13 +142,13 @@ top_genres <- names(sort(table(netflix_clean$genres), decreasing = TRUE))[1:6]
 
 
 ggplot(filter(netflix_clean, genres %in% top_genres),
-       aes(x = popularity, y = log(revenue), color = genres)) +
+       aes(x = popularity, y = revenue, color = genres)) +
   geom_smooth(method = "lm", se = FALSE, size = 1.2) +
   scale_x_log10() +
   labs(
-    title = "Interaction between Genre and Popularity on Log Revenue",
+    title = "Interaction between Genre and Popularity on Revenue",
     x = "Popularity (log scale)",
-    y = "Log Revenue (USD)"
+    y = "Revenue (USD)"
   ) +
   theme_minimal(base_size = 13) +
   theme(legend.title = element_blank())
