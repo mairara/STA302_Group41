@@ -1,0 +1,519 @@
+setwd("~/STA302/Project/STA302_Group41")
+
+install.packages("car")
+
+# read data
+netflix <- read.csv("netflix_movies_data.csv")
+str(netflix)
+summary(netflix)
+hist(netflix$revenue, breaks = 50, main = "Distribution of Revenue", xlab = "Revenue (USD)")
+
+# no nulls but lots of zero revenue
+sum(is.na(netflix$revenue))
+sum(netflix$revenue != 0)
+sum(netflix$budget != 0)
+
+#clean dataset
+netflix_clean <- subset(netflix, revenue > 0)
+netflix_clean <- subset(netflix_clean, budget > 0)
+summary(netflix_clean)
+hist(netflix_clean$revenue, breaks = 50, main = "Distribution of Revenue", xlab = "Revenue (USD)")
+head(sort(netflix_clean$revenue), 15)
+sapply(netflix_clean, function(x) sum(!is.na(x)))
+
+# duration is null, type is all movie.
+netflix_clean <- subset(netflix_clean, select = -duration)
+netflix_clean <- subset(netflix_clean, select = -type)
+
+
+#still 20ish movies with $2-$15 so remove them
+netflix_clean <- subset(netflix_clean, revenue >= 1000)
+summary(netflix_clean$revenue)
+hist(netflix_clean$revenue, breaks = 50, main = "Distribution of Revenue", xlab = "Revenue (USD)")
+
+#very skewed, so use log scale to make a lil more readable
+hist(log(netflix_clean$revenue),
+     breaks = 50,
+     main = "Log-Transformed Distribution of Revenue",
+     xlab = "log(Revenue in USD)")
+
+# predictors used in the preliminary model
+install.packages("psych")
+install.packages("stringr")
+install.packages("dplyr")
+install.packages("kableExtra")
+
+names(netflix_clean)
+# currently have 16 features and one predictor
+# but have to make some more usable like cast,
+# director, (even though they do have influence,
+# to make it more usable we will just look at count as a
+# measure of production scale for lin reg.)
+
+library(stringr)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(psych)
+library(forcats)
+
+netflix_clean <- netflix_clean %>%
+  mutate(
+    cast_count = ifelse(is.na(cast), 0, str_count(cast, ",") + 1),
+    director_count = ifelse(is.na(director), 0, str_count(director, ",") + 1),
+  )
+
+netflix_clean <- netflix_clean %>%
+  mutate(
+    language = as.factor(language),
+    country = as.factor(country),
+    genres = fct_lump_min(as.factor(genres), min = 40)
+  )
+
+#keeping top 10 languages and countries with the rest in other
+netflix_clean <- netflix_clean %>%
+  mutate(
+    language = fct_lump(language, n = 10),
+    country = fct_lump(country, n = 10)
+  )
+
+
+#generate summary table
+# Select numeric predictors
+numeric_vars <- netflix_clean %>%
+  select(budget, vote_average, vote_count, popularity,
+         release_year, cast_count, director_count)
+         
+#Preliminary assessment of multicollinearity
+cor_matrix <- cor(numeric_vars)
+
+pairs(numeric_vars, main = "Pairs plot of Numeric Predictors")
+
+#All corrleation less than 0.4 which meansthere is no multicollinearity in all pairs, except budget and vote-count where the correlation 0.61 >0.6 wchih indicates a clear linear trend 
+
+# Compute updated summary
+desc <- describe(numeric_vars)
+
+# Format results cleanly
+summary_table <- desc %>%
+  select(vars, n, min, max, mean, sd, skew, kurtosis) %>%
+  mutate(Variable = rownames(desc)) %>%
+  select(Variable, everything(), -vars) %>%
+  mutate(across(where(is.numeric), ~ round(., 2)))
+
+# Display updated summary table
+kable(summary_table, caption = "Table 1: Summary Statistics for Numeric Predictors (After Removing Zero Budgets)") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+# summarize category
+# function to summarize any categorical variable
+summarize_categorical <- function(df, var) {
+  df %>%
+    group_by({{ var }}) %>%
+    summarise(
+      Count = n()
+    ) %>%
+    mutate(
+      Percentage = round(100 * Count / sum(Count), 2)
+    ) %>%
+    arrange(desc(Count)) %>%
+    rename(Category = {{ var }})
+}
+
+# summarize all categorical predictors
+genres_summary <- summarize_categorical(netflix_clean, genres)
+country_summary <- summarize_categorical(netflix_clean, country)
+language_summary <- summarize_categorical(netflix_clean, language)
+
+# combine them into one list of tables
+categorical_tables <- list(
+  "Genres" = genres_summary,
+  "Country" = country_summary,
+  "Language" = language_summary
+)
+
+# display each table neatly
+for (name in names(categorical_tables)) {
+  cat("\n\n")
+  cat(paste0("### Table: ", name, "\n\n"))
+  print(
+    kable(categorical_tables[[name]],
+          caption = paste("Distribution of", name),
+          digits = 2) %>%
+      kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+  )
+}
+
+# choosing interaction term
+library(ggplot2)
+
+top_genres <- names(sort(table(netflix_clean$genres), decreasing = TRUE))[1:6]
+
+
+ggplot(filter(netflix_clean, genres %in% top_genres),
+       aes(x = popularity, y = revenue, color = genres)) +
+  geom_smooth(method = "lm", se = FALSE, size = 1.2) +
+  scale_x_log10() +
+  labs(
+    title = "Interaction between Genre and Popularity on Revenue",
+    x = "Popularity (log scale)",
+    y = "Revenue (USD)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.title = element_blank())
+
+#Preliminary model
+preliminary_model <- lm(revenue ~ budget + vote_average + vote_count + popularity + release_year + cast_count + director_count + genres+ language + country + genres:popularity, data = netflix_clean)
+
+#Pair Plots
+library(car)
+vif(preliminary_model)
+
+#All VIF are fine except popularity when we use our general cutoff of VIF>5 to indentify severe umlticollinearity)
+
+#Residual Analysis
+y_hat <- fitted (preliminary_model)
+e_hat <- resid(preliminary_model)
+
+par(mfrow = c(1, 4))
+plot(y_hat, e_hat, main = "Residuals vs Fitted", xlab = "Fitted values", ylab = "Residuals")
+plot(netflix_clean$budget, e_hat, main = "Residuals vs Budget", xlab = "Budget", ylab = "Residuals")
+plot(netflix_clean$vote_average, e_hat, main = "Residuals vs Vote Average", xlab = "Vote Average", ylab = "Residuals")
+qqnorm(e_hat)
+qqline(e_hat)
+
+#Confidence interval and standard errors
+summary (preliminary_model)
+confint(preliminary_model)
+
+
+#--------------------------------------------------------------------------------------
+
+     
+
+
+# checking predictor vs response
+par(mfrow = c(3, 3))
+
+plot(netflix_clean$budget, netflix_clean$revenue,
+     xlab = "Budget", ylab = "Revenue",
+     main = "Revenue vs Budget")
+
+plot(netflix_clean$vote_average, netflix_clean$revenue,
+     xlab = "Vote Average", ylab = "Revenue",
+     main = "Revenue vs Vote Average")
+
+plot(netflix_clean$vote_count, netflix_clean$revenue,
+     xlab = "Vote Count", ylab = "Revenue",
+     main = "Revenue vs Vote Count")
+
+plot(netflix_clean$popularity, netflix_clean$revenue,
+     xlab = "Popularity", ylab = "Revenue",
+     main = "Revenue vs Popularity")
+
+plot(netflix_clean$release_year, netflix_clean$revenue,
+     xlab = "Release Year", ylab = "Revenue",
+     main = "Revenue vs Release Year")
+
+plot(netflix_clean$director_count, netflix_clean$revenue,
+     xlab = "Director Count", ylab = "Revenue",
+     main = "Revenue vs Director Count")
+
+plot(netflix_clean$cast_count, netflix_clean$revenue,
+     xlab = "Cast Count", ylab = "Revenue",
+     main = "Revenue vs Cast Count")
+
+
+#The Revenue vs Predictor scatterplots reveal severe nonlinearity for most predictors, including budget, vote count, popularity, and vote average. The fan-shaped patterns and curved relationships indicate violations of both the linearity assumption and the constant-variance assumption. Cast Count and Director Count show extremely low variation and no meaningful association with revenue. Overall, these plots justify the need for transforming the response (via Box–Cox) and for removing variables with no predictive value.
+
+
+
+
+# Now we will check assumptions
+
+model1 <- lm(revenue ~ budget + vote_average + vote_count +
+                   popularity + release_year,
+                   data = netflix_clean)
+
+# Check residual vs each predictor 
+par(mfrow = c(2, 3))
+
+plot(netflix_clean$budget, model1$residuals,
+     xlab = "Budget",
+     ylab = "Residuals",
+     main = "Residuals vs Budget")
+abline(h = 0, col = "red")
+
+plot(netflix_clean$vote_average, model1$residuals,
+     xlab = "Vote Average",
+     ylab = "Residuals",
+     main = "Residuals vs Vote Average")
+abline(h = 0, col = "red")
+
+plot(netflix_clean$vote_count, model1$residuals,
+     xlab = "Vote Count",
+     ylab = "Residuals",
+     main = "Residuals vs Vote Count")
+abline(h = 0, col = "red")
+
+plot(netflix_clean$popularity, model1$residuals,
+     xlab = "Popularity",
+     ylab = "Residuals",
+     main = "Residuals vs Popularity")
+abline(h = 0, col = "red")
+
+plot(netflix_clean$release_year, model1$residuals,
+     xlab = "Release Year",
+     ylab = "Residuals",
+     main = "Residuals vs Release Year")
+abline(h = 0, col = "red")
+
+# budget : linearity is okay, no clusters so uncorrelated erros are ok, const var seems okay
+
+#vote_avg: constant variance issue
+
+# vote_count is okay
+# populairty : const var issue
+
+#release year seems okay
+
+
+
+# checking linearity + constant var
+plot(model1$fitted.values, model1$residuals,
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted (Linearity and Constant Var Check)")
+abline(h = 0, col = "red")
+
+
+# VERYYYYY clear fanning shape so there is a violation of constant variance. 
+# no clusters so uncorrelated erros is okay
+# no curves so linearity seems okay too 
+
+# checking normality
+qqnorm(model1$residuals,
+       main = "Normal Q-Q Plot (Normality Check)")
+qqline(model1$residuals, col = "red")
+
+# S shape curved - issue with normality
+
+library(car)
+
+#box cox on response gives us a rounded power of 0.12 which we can round to 0,
+# for better interpretability, which tells us we need to do a log transformation
+# as expected.
+summary(powerTransform(netflix_clean$revenue))
+
+# box cox on predictors tell us that we need to do log on budget, power of 2 on vote_average
+# log on vote_count, reciprocal square root on popularity, power of -3 on release_year
+summary(powerTransform(
+  cbind(
+  netflix_clean$budget,
+        netflix_clean$vote_average,
+        netflix_clean$vote_count,
+        netflix_clean$popularity,
+        netflix_clean$release_year)
+))
+
+summary(powerTransform(netflix_clean$revenue))
+
+
+#revenue 
+hist(netflix_clean$revenue,
+     breaks = 50,
+     main = "Distribution of Revenue",
+     xlab = "(Revenue in USD)")
+
+# very large right skew so either a log or square root transformation
+
+
+# log transformation on revenue is suggest by box cox
+hist(log(netflix_clean$revenue),
+     breaks = 50,
+     main = "Log-Transformed Distribution of Revenue",
+     xlab = "log(Revenue in USD)")
+
+
+# transformations applied 
+# TRANSFORMED PREDICTORS (based on your instruction)
+netflix_clean$log_revenue <- log(netflix_clean$revenue)
+netflix_clean$budget_t <- log(netflix_clean$budget)
+
+netflix_clean$vote_average_t  <- (netflix_clean$vote_average)^2
+
+netflix_clean$vote_count_t <- log(netflix_clean$vote_count + 1)
+
+netflix_clean$popularity_t  <- 1 / sqrt(netflix_clean$popularity + 1)
+
+netflix_clean$release_year_t  <- (netflix_clean$release_year)^(-3)
+
+#define new model
+
+model2 <- lm(log_revenue ~ budget_t + vote_average_t +
+                          vote_count_t + popularity_t + release_year,
+                        data = netflix_clean)
+
+#check if violation is solved
+
+par(mfrow = c(2, 3))
+
+plot(netflix_clean$budget_t, model2$residuals,
+     xlab = "log(Budget)",
+     ylab = "Residuals",
+     main = "Residuals vs log(Budget)")
+abline(h = 0, col = "red")
+
+plot(netflix_clean$vote_average_t, model2$residuals,
+     xlab = "(Vote Average)^2",
+     ylab = "Residuals",
+     main = "Residuals vs (Vote Average)^2")
+abline(h = 0, col = "red")
+
+plot(netflix_clean$vote_count_t, model2$residuals,
+     xlab = "log(Vote Count + 1)",
+     ylab = "Residuals",
+     main = "Residuals vs log(Vote Count)")
+abline(h = 0, col = "red")
+
+plot(netflix_clean$popularity_t, model2$residuals,
+     xlab = "1 / sqrt(Popularity + 1)",
+     ylab = "Residuals",
+     main = "Residuals vs 1/sqrt(Popularity)")
+abline(h = 0, col = "red")
+
+plot(netflix_clean$release_year_t, model2$residuals,
+     xlab = "(Release Year)^(-3)",
+     ylab = "Residuals",
+     main = "Residuals vs (Release Year)^(-3)")
+abline(h = 0, col = "red")
+
+#We chose not to transform Release Year. Although the Box–Cox transformation suggested a negative power (λ ≈ –3), this transformation is not meaningful because Year is a discrete, ordered variable with very limited range (2010–2025). Applying a power such as collapses the scale and produces almost no variation, which harms interpretability and contributes nothing to model fit.
+
+#Furthermore, Release Year does not exhibit clear non-linearity or heteroskedasticity in the residual plots after transforming the response. Since predictor normality is not required in regression, and interpretability is important, we retain Release Year in its original scale.
+
+
+# violations seem solved so now we keep new model
+
+
+# checking normality
+qqnorm(model2$residuals,
+       main = "Normal Q-Q Plot (Normality Check)")
+qqline(model2$residuals, col = "red")
+
+# slightly light tailed skew but should be okay ?
+
+#AIC/BIC
+AIC(model2)
+BIC(model2)
+
+AIC(model1,model2)
+BIC(model1,model2)
+
+
+#???????
+# sample size (n) = 3527
+n <- nrow(netflix_clean)
+# predictors (p)  = 5  check if we should include interaction terms
+p <- 5
+
+#SST 
+SST <- (n -1) * var(netflix_clean$log_revenue)
+#RSS
+RSS <- sum((model2$fitted.values-netflix_clean$log_revenue)^2)
+#SSreg
+SSreg <- SST - RSS
+
+#Find the mean squares
+MSR <-  RSS / (n-p-1)
+MSreg <- SSreg / p
+
+#Compute test statistic
+F_statistic <- MSreg/MSR
+
+#Conclusion using p-value or critical value
+pf(F_statistic, p, (n-p-1), lower.tail = FALSE)
+qf(0.95, p, (n-p-1))
+
+
+#t-test
+critical_value <- qt(0.025, n-p-1)
+
+summary(model2)
+
+#Since the p-value of 0 is < 0.05 and  F_statistic > critical value we reject H0 and concclude that a statistically significant linear reltionship exists for at least one predictor
+
+#t-test on each coefficient says all are significantly related
+
+#R^2 test concludes that 54% of variation in the response has been explained by the model 
+
+#Partial F-test (don't need to perform cause we are not reducing any predictors)
+
+
+# sample size and number of predictors
+n <- nrow(netflix_clean)
+p <- length(coef(model2)) - 1 
+
+# 1. LEVERAGE (hatvalues)
+hii <- hatvalues(model2)
+leverage_cutoff <- 2 * (p + 1) / n
+high_leverage <- which(hii > leverage_cutoff)
+
+# 2. STANDARDIZED RESIDUALS (outliers)
+ri <- rstandard(model2)
+if (n < 50) {
+  outlier_cutoff <- 2
+} else {
+  outlier_cutoff <- 4
+}
+outliers <- which(abs(ri) > outlier_cutoff)
+
+# 3. COOK'S DISTANCE
+Di <- cooks.distance(model2)
+cooks_cutoff <- qf(0.5, df1 = p + 1, df2 = n - p - 1)
+influential_cooks <- which(Di > cooks_cutoff)
+
+# 4. DFFITS
+dff <- dffits(model2)
+dffits_cutoff <- 2 * sqrt((p + 1) / n)
+influential_dffits <- which(abs(dff) > dffits_cutoff)
+
+# 5. DFBETAS
+dfb <- dfbetas(model2)
+dfbetas_cutoff <- 2 / sqrt(n)
+influential_dfbetas <- which(apply(abs(dfb) > dfbetas_cutoff, 1, any))
+
+### OUTPUT SUMMARY
+cat("\n---------- PROBLEMATIC OBSERVATION SUMMARY ----------\n")
+cat("High leverage points (hii > cutoff):\n"); print(high_leverage)
+
+cat("\nOutliers (|standardized residual| > cutoff):\n"); print(outliers)
+
+cat("\nInfluential (Cook's Distance > F-median cutoff):\n"); print(influential_cooks)
+
+cat("\nInfluential (|DFFITS| > cutoff):\n"); print(influential_dffits)
+
+cat("\nInfluential (DFBETAS > cutoff for at least one coefficient):\n"); print(influential_dfbetas)
+
+cat("\n------------------------------------------------------\n")
+
+
+#Model Validation
+
+s<-sample(1:nrow(netflix_clean), 2116, replace = F)
+train <- netflix_clean[s,]
+test <- netflix_clean[-s,]
+
+final_model <- lm(log_revenue ~ budget_t + vote_average_t +
+                          vote_count_t + popularity_t + release_year,
+                        data = train)
+                        
+summary(final_model)
+
+fitted_test <- predict(final_model, newdata= test_data)
+MSE <- mean(test_data$log_revenue - fitted_test)^2))
+MSE
+
+
+
