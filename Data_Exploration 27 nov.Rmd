@@ -315,7 +315,7 @@ summary(powerTransform(
 summary(powerTransform(netflix_clean$revenue))
 
 
-#revenue 
+# revenue 
 hist(netflix_clean$revenue,
      breaks = 50,
      main = "Distribution of Revenue",
@@ -416,43 +416,43 @@ AIC(model1,model2)
 BIC(model1,model2)
 
 
-#???????
 # sample size (n) = 3527
 n <- nrow(netflix_clean)
 # predictors (p)  = 5  check if we should include interaction terms
 p <- 5
 
-#SST 
+# SST 
 SST <- (n -1) * var(netflix_clean$log_revenue)
-#RSS
+# RSS
 RSS <- sum((model2$fitted.values-netflix_clean$log_revenue)^2)
-#SSreg
+# SSreg
 SSreg <- SST - RSS
 
-#Find the mean squares
+# Find the mean squares
 MSR <-  RSS / (n-p-1)
 MSreg <- SSreg / p
 
-#Compute test statistic
+# Compute test statistic
 F_statistic <- MSreg/MSR
 
-#Conclusion using p-value or critical value
+# Conclusion using p-value or critical value
 pf(F_statistic, p, (n-p-1), lower.tail = FALSE)
 qf(0.95, p, (n-p-1))
 
 
-#t-test
+# t-test
 critical_value <- qt(0.975, n-p-1)
 
 summary(model2)
 
-#Since the p-value of 0 is < 0.05 and  F_statistic > critical value we reject H0 and concclude that a statistically significant linear reltionship exists for at least one predictor
+# Since the p-value of 0 is < 0.05 and  F_statistic > critical value we reject H0 and conclude that a statistically 
+# significant linear reltionship exists for at least one predictor
 
-#t-test on each coefficient says all are significantly related
+# t-test on each coefficient says all are significantly related
 
-#R^2 test concludes that 54% of variation in the response has been explained by the model 
+# R^2 test concludes that 54% of variation in the response has been explained by the model 
 
-#Partial F-test (don't need to perform cause we are not reducing any predictors)
+# Partial F-test (don't need to perform cause we are not reducing any predictors)
 
 
 # sample size and number of predictors
@@ -516,31 +516,32 @@ BIC(model2,model3)
 n <- nrow(netflix_clean)
 p <- length(coef(model3)) - 1 
 
-#SST 
+# SST 
 SST <- (n -1) * var(netflix_clean$log_revenue)
 #RSS
 RSS <- sum((model3$fitted.values-netflix_clean$log_revenue)^2)
-#SSreg
+# SSreg
 SSreg <- SST - RSS
 
-#Find the mean squares
+# Find the mean squares
 MSR <-  RSS / (n-p-1)
 MSreg <- SSreg / p
 
-#Compute test statistic
+# Compute test statistic
 F_statistic <- MSreg/MSR
 
-#Conclusion using p-value or critical value
+# Conclusion using p-value or critical value
 pf(F_statistic, p, (n-p-1), lower.tail = FALSE)
 qf(0.95, p, (n-p-1))
 
 
-#t-test
+# t-test
 critical_value <- qt(0.975, n-p-1)
 
 summary(model3)
 
-#While VIF wasa all good, aic/bic of model3 is better than model2, f tests indicates significant linear relationship with one of the predictor, we found that popularity_t:genresComedy, Romance & popularity_t:genresHorror have t-value less than the cut off of our critical value 1.96 which indicates it is not significant in our model thus we will drop it
+# While VIF was all good, aic/bic of model3 is better than model2, f tests indicates significant linear relationship with one of the predictor, we found that popularity_t:genresComedy, 
+# Romance & popularity_t:genresHorror have t-value less than the cut off of our critical value 1.96 which indicates it is not significant in our model thus we will drop it
 
 
 # 1. LEVERAGE (hatvalues)
@@ -587,7 +588,7 @@ cat("\nInfluential (DFBETAS > cutoff for at least one coefficient):\n"); print(i
 cat("\n------------------------------------------------------\n")
 
 
-#Model Validation
+# Model Validation
 s<-sample(1:nrow(netflix_clean), 2116, replace = F)
 train <- netflix_clean[s,]
 test <- netflix_clean[-s,]
@@ -604,7 +605,7 @@ fitted_test <- predict(final_model, newdata= test)
 train_MSE<- mean((train$log_revenue - fitted_train)^2)
 test_MSE <- mean((test$log_revenue - fitted_test)^2)
 
-#the Train and Test MSE are similar which means that out mdoel is not overfitting
+# the Train and Test MSE are similar which means that out model is not overfitting
 
 
 
