@@ -229,7 +229,7 @@ plot(netflix_clean$cast_count, netflix_clean$revenue,
 # Now we will check assumptions
 
 model1 <- lm(revenue ~ budget + vote_average + vote_count +
-                   popularity:+ release_year,
+                   popularity + release_year,
                    data = netflix_clean)
 
 # Check residual vs each predictor 
@@ -588,8 +588,10 @@ cat("\nInfluential (DFBETAS > cutoff for at least one coefficient):\n"); print(i
 cat("\n------------------------------------------------------\n")
 
 
-# Model Validation
-s<-sample(1:nrow(netflix_clean), 2116, replace = F)
+# Model Validation - 60-40 test split
+set.seed(302) 
+s <- sample(seq_len(nrow(netflix_clean)), 2116, replace = FALSE)
+# s<-sample(1:nrow(netflix_clean), 2116, replace = F)
 train <- netflix_clean[s,]
 test <- netflix_clean[-s,]
 
