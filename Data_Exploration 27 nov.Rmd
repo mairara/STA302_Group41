@@ -8,6 +8,10 @@ str(netflix)
 summary(netflix)
 hist(netflix$revenue, breaks = 50, main = "Distribution of Revenue", xlab = "Revenue (USD)")
 
+
+# ---------- INITIAL EDA + DATA EXPLORATION ---------------------------------------------
+
+
 # no nulls but lots of zero revenue
 sum(is.na(netflix$revenue))
 sum(netflix$revenue != 0)
@@ -182,10 +186,7 @@ summary (preliminary_model)
 confint(preliminary_model)
 
 
-#--------------------------------------------------------------------------------------
-
-     
-
+#-------------Building Model + Checking Assumptions------------------------------------
 
 # checking predictor vs response
 par(mfrow = c(3, 3))
@@ -219,9 +220,10 @@ plot(netflix_clean$cast_count, netflix_clean$revenue,
      main = "Revenue vs Cast Count")
 
 
-#The Revenue vs Predictor scatterplots reveal severe nonlinearity for most predictors, including budget, vote count, popularity, and vote average. The fan-shaped patterns and curved relationships indicate violations of both the linearity assumption and the constant-variance assumption. Cast Count and Director Count show extremely low variation and no meaningful association with revenue. Overall, these plots justify the need for transforming the response (via Box–Cox) and for removing variables with no predictive value.
-
-
+# The Revenue vs Predictor scatterplots reveal severe nonlinearity for most predictors, including budget, vote count, popularity, and vote average.
+# The fan-shaped patterns and curved relationships indicate violations of both the linearity assumption and the constant-variance assumption. 
+# Cast Count and Director Count show extremely low variation and no meaningful association with revenue. Overall, these plots justify the need for
+# transforming the response (via Box–Cox) and for removing variables with no predictive value.
 
 
 # Now we will check assumptions
@@ -271,7 +273,6 @@ abline(h = 0, col = "red")
 # populairty : const var issue
 
 #release year seems okay
-
 
 
 # checking linearity + constant var
@@ -383,9 +384,12 @@ plot(netflix_clean$release_year_t, model2$residuals,
      main = "Residuals vs (Release Year)^(-3)")
 abline(h = 0, col = "red")
 
-#We chose not to transform Release Year. Although the Box–Cox transformation suggested a negative power (λ ≈ –3), this transformation is not meaningful because Year is a discrete, ordered variable with very limited range (2010–2025). Applying a power such as collapses the scale and produces almost no variation, which harms interpretability and contributes nothing to model fit.
+#We chose not to transform Release Year. Although the Box–Cox transformation suggested a negative power (λ ≈ –3), this transformation is not meaningful because Year is a discrete, 
+# ordered variable with very limited range (2010–2025). Applying a power such as collapses the scale and produces almost no variation, which harms interpretability and contributes
+# nothing to model fit.
 
-#Furthermore, Release Year does not exhibit clear non-linearity or heteroskedasticity in the residual plots after transforming the response. Since predictor normality is not required in regression, and interpretability is important, we retain Release Year in its original scale.
+#Furthermore, Release Year does not exhibit clear non-linearity or heteroskedasticity in the residual plots after transforming the response.
+# Since predictor normality is not required in regression, and interpretability is important, we retain Release Year in its original scale.
 
 
 # violations seem solved so now we keep new model
