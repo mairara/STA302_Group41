@@ -459,12 +459,12 @@ summary(model2)
 n <- nrow(netflix_clean)
 p <- length(coef(model2)) - 1 
 
-# 1. LEVERAGE (hatvalues)
+# 1. LEVERAGE 
 hii <- hatvalues(model2)
 leverage_cutoff <- 2 * (p + 1) / n
 high_leverage <- which(hii > leverage_cutoff)
 
-# 2. STANDARDIZED RESIDUALS (outliers)
+# 2. STANDARDIZED RESIDUALS 
 ri <- rstandard(model2)
 if (n < 50) {
   outlier_cutoff <- 2
@@ -489,20 +489,13 @@ dfbetas_cutoff <- 2 / sqrt(n)
 influential_dfbetas <- which(apply(abs(dfb) > dfbetas_cutoff, 1, any))
 
 ### OUTPUT SUMMARY
-cat("\n---------- PROBLEMATIC OBSERVATION SUMMARY ----------\n")
-cat("High leverage points (hii > cutoff):\n"); print(high_leverage)
-
-cat("\nOutliers (|standardized residual| > cutoff):\n"); print(outliers)
-
-cat("\nInfluential (Cook's Distance > F-median cutoff):\n"); print(influential_cooks)
-
-cat("\nInfluential (|DFFITS| > cutoff):\n"); print(influential_dffits)
-
-cat("\nInfluential (DFBETAS > cutoff for at least one coefficient):\n"); print(influential_dfbetas)
-
-cat("\n------------------------------------------------------\n")
+print(high_leverage)
+print(outliers)
+print(influential_cooks)
+print(influential_dffits)print(influential_dfbetas)
 
 
+# model 3
 model3 <- lm(log_revenue ~ budget_t + vote_average_t +
                           vote_count_t + popularity_t + popularity_t:genres +  release_year,
                         data = netflix_clean)
